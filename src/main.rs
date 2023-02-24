@@ -46,6 +46,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 async fn fetch_url(url: String, filename: String) -> Result<()> {
     let response = reqwest::get(&url).await?;
     fs::create_dir_all("./images/")?;
+
     let mut file = fs::File::create(format!("./images/{}", filename))?;
     let mut content = Cursor::new(response.bytes().await?);
     std::io::copy(&mut content, &mut file)?;
@@ -69,13 +70,19 @@ async fn fetch_posts(posts: Vec<&Post>) {
 
                 let re = Regex::new(r"/([^/]+?)\?").unwrap();
                 let filename = re.find(&url).unwrap().as_str().replace("?", "").replace("/", "");
-                println!("{}", filename);
 
-                if let Err(_e) = fetch_url(url.to_string(), filename).await {
-                    println!("Error fetching image.");
+                match fs::metadata(format!("./images/{}", filename)).is_ok() {
+                    false => {
+                        println!("{}", filename);
+
+                        if let Err(_e) = fetch_url(url.to_string(), filename).await {
+                            println!("Error fetching image.");
+                        }
+
+                        return;
+                    },
+                    true => {}
                 }
-
-                return;
             },
             None => println!("No image"),
         }
