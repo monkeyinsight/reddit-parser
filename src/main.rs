@@ -45,13 +45,13 @@ struct APIResponse {
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-async fn fetch_url(url: String, filename: String) -> Result<()> {
+async fn fetch_url(url: String, filename: String) -> Result<String> {
     let response = reqwest::get(&url).await?;
     fs::create_dir_all("./images/")?;
     let mut file = fs::File::create(format!("./images/{}", filename))?;
     let mut content = Cursor::new(response.bytes().await?);
     std::io::copy(&mut content, &mut file)?;
-    Ok(())
+    Ok(format!("./images/{}", filename))
 }
 
 async fn fetch_posts(posts: Vec<&Post>) {
@@ -66,12 +66,15 @@ async fn fetch_posts(posts: Vec<&Post>) {
                 let filename = re.find(&url).unwrap().as_str().replace("?", "").replace("/", "");
                 println!("{}", filename);
 
-                fetch_url(url.to_string(), filename).await;
+                if let Err(_e) = fetch_url(url.to_string(), filename).await {
+                    println!("Error fetching image.");
+                }
+                return;
             },
-            None => println!("No image for post."),
+            None => println!("No image"),
         }
 
-        println!("---------");
+        println!("-------");
     }
 }
 
@@ -86,7 +89,6 @@ async fn main() {
     }.to_string();
 
     let client = reqwest::Client::new();
-    println!("{}", format!("https://www.reddit.com/r/{}/hot.json", sub));
     let response = client.get(format!("https://www.reddit.com/r/{}/hot.json", sub))
         .send()
         .await
