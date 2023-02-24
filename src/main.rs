@@ -8,8 +8,6 @@ use std::fs;
 #[derive(Serialize, Deserialize, Debug)]
 struct Source {
     url: String,
-    width: u32,
-    height: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -86,7 +84,6 @@ async fn fetch_posts(posts: Vec<&Post>) {
     }
 }
 
-// tokio let's us use "async" on our main function
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = env::args().collect();
@@ -111,7 +108,6 @@ async fn main() {
     match response.status() {
         reqwest::StatusCode::OK => {
             match response.json::<APIResponse>().await {
-                // Ok(parsed) => println!("Success! {:?}", parsed),
                 Ok(parsed) => fetch_posts(parsed.data.children.iter().collect()).await,
                 Err(_) => println!("Hm, the response didn't match the shape we expected."),
             }
