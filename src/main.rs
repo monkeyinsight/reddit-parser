@@ -57,9 +57,9 @@ async fn fetch_url(url: String, filename: String) -> Result<()> {
     Ok(())
 }
 
-async fn upload(file: fs::File) {
+// async fn upload(file: fs::File) {
     // let response = reqwest::get("https://chatpic.org").await;
-}
+// }
 
 async fn fetch_posts(posts: Vec<&Post>) {
     for post in posts {
