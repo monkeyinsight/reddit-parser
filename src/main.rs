@@ -1,9 +1,26 @@
-use std::io::Cursor;
-use reqwest;
+// use std::io::Cursor;
+use clap::Parser;
+use reqwest::{Client};
 use serde::{Deserialize, Serialize};
 use regex::Regex;
-use std::env;
 use std::fs;
+use std::collections::HashMap;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+   #[arg(short, long)]
+   u: String,
+   #[arg(short, long)]
+   p: String,
+   #[arg(short, long)]
+   room: String,
+   #[arg(short, long, default_value="all")]
+   sub: String,
+   #[arg(short, long, default_value="hot")]
+   t: String,
+}
+
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Source {
@@ -43,26 +60,63 @@ struct APIResponse {
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-async fn fetch_url(url: String, filename: String) -> Result<()> {
-    let response = reqwest::get(&url).await?;
-    fs::create_dir_all("./images/")?;
+async fn fetch_url(url: String, title: &String) -> Result<()> {
+    // let response = reqwest::get(&url).await?;
+    // fs::create_dir_all("./images/")?;
 
-    let mut file = fs::File::create(format!("./images/{}", filename))?;
-    let mut content = Cursor::new(response.bytes().await?);
-    std::io::copy(&mut content, &mut file)?;
+    // let mut file = fs::File::create(format!("./images/{}", filename))?;
+    // let mut content = Cursor::new(response.bytes().await?);
+    // std::io::copy(&mut content, &mut file)?;
 
-    // upload(file).await;
+    println!("{}", title);
+
+    upload(url, title).await;
 
     Ok(())
 }
 
-// async fn upload(file: fs::File) {
-    // let response = reqwest::get("https://chatpic.org").await;
-// }
+async fn upload(url: String, title: &String) {
+    let args = Args::parse();
+
+    let mut params = HashMap::new();
+    params.insert("email", args.u);
+    params.insert("password", args.p);
+
+    let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .unwrap();
+
+    let response = client.post("https://multimedia.chat/api/auth/login")
+        .form(&params)
+        .send()
+        .await
+        .unwrap();
+
+    let cookies = response.cookies().collect::<Vec<_>>();
+
+    println!("Cookies: {:?}", cookies);
+
+    let text = response.text().await.unwrap();
+    println!("{:?}", text);
+
+    let mut upload = HashMap::new();
+    upload.insert("title", title);
+    upload.insert("url", &url);
+
+    let response = client.post(format!("https://multimedia.chat/api/channels/{}/medias/url", args.room))
+        .form(&upload)
+        .send()
+        .await
+        .unwrap();
+
+    let text = response.text().await.unwrap();
+    println!("{:?}", text);
+}
 
 async fn fetch_posts(posts: Vec<&Post>) {
     for post in posts {
-        println!("{}", post.data.title);
+        let title = &post.data.title;
 
         match &post.data.preview {
             Some(x) => {
@@ -75,16 +129,18 @@ async fn fetch_posts(posts: Vec<&Post>) {
                     false => {
                         println!("{}", filename);
 
-                        if let Err(_e) = fetch_url(url.to_string(), filename).await {
+                        if let Err(_e) = fetch_url(url.to_string(), title).await {
                             println!("Error fetching image.");
                         }
 
                         return;
                     },
-                    true => {}
+                    true => {
+                        println!("File already exist.");
+                    }
                 }
             },
-            None => println!("No image"),
+            None => println!("No image."),
         }
 
         println!("-------");
@@ -93,21 +149,11 @@ async fn fetch_posts(posts: Vec<&Post>) {
 
 #[tokio::main]
 async fn main() {
-    let args: Vec<String> = env::args().collect();
-    let sub = if &args.len() > &1 {
-        &args[1]
-    } else {
-        "all"
-    }.to_string();
+    let args = Args::parse();
 
-    let t = if &args.len() > &2 {
-        &args[2]
-    } else {
-        "hot"
-    }.to_string();
-
-    let client = reqwest::Client::new();
-    let response = client.get(format!("https://www.reddit.com/r/{}/{}.json", sub, t))
+    let client = Client::new();
+    println!("Reading /r/{}/{}", args.sub, args.t);
+    let response = client.get(format!("https://www.reddit.com/r/{}/{}.json", args.sub, args.t))
         .send()
         .await
         .unwrap();
